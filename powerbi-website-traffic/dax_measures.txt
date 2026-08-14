@@ -1,0 +1,88 @@
+========================================================
+Website Traffic Analysis — DAX Measures
+Paste these into Power BI: Modeling > New Measure
+Assumes the table is named "WebSessions" after import.
+========================================================
+
+-- CORE TRAFFIC --
+
+Total Sessions =
+COUNTROWS(WebSessions)
+
+Total Pageviews =
+SUM(WebSessions[Pageviews])
+
+Avg Pageviews Per Session =
+DIVIDE([Total Pageviews], [Total Sessions], 0)
+
+Total Conversions =
+SUM(WebSessions[Converted])
+
+Conversion Rate =
+DIVIDE([Total Conversions], [Total Sessions], 0)
+
+
+-- ENGAGEMENT --
+
+Bounce Rate =
+DIVIDE(SUM(WebSessions[IsBounce]), [Total Sessions], 0)
+
+Avg Session Duration (sec) =
+CALCULATE(
+    AVERAGE(WebSessions[SessionDurationSec]),
+    WebSessions[IsBounce] = 0
+)
+
+Engaged Sessions =
+CALCULATE([Total Sessions], WebSessions[IsBounce] = 0)
+
+
+-- TIME INTELLIGENCE --
+
+Sessions MoM Growth =
+VAR CurrentMonth = [Total Sessions]
+VAR PriorMonth =
+    CALCULATE(
+        [Total Sessions],
+        DATEADD(WebSessions[Date], -1, MONTH)
+    )
+RETURN
+    DIVIDE(CurrentMonth - PriorMonth, PriorMonth, 0)
+
+Avg Daily Sessions (Weekday) =
+CALCULATE(
+    [Total Sessions] / DISTINCTCOUNT(WebSessions[Date]),
+    WEEKDAY(WebSessions[Date], 2) <= 5
+)
+
+Avg Daily Sessions (Weekend) =
+CALCULATE(
+    [Total Sessions] / DISTINCTCOUNT(WebSessions[Date]),
+    WEEKDAY(WebSessions[Date], 2) > 5
+)
+
+
+-- SOURCE / DEVICE BREAKDOWNS (use with matrix or bar charts, sliced by TrafficSource/Device) --
+
+Conversion Rate by Source =
+DIVIDE(
+    CALCULATE(SUM(WebSessions[Converted])),
+    CALCULATE(COUNTROWS(WebSessions)),
+    0
+)
+-- Place TrafficSource on the axis; this measure auto-slices per category
+
+Sessions Share of Total =
+DIVIDE([Total Sessions], CALCULATE([Total Sessions], ALL(WebSessions)), 0)
+-- Shows each source/device/country's % of total sessions when placed on a table/chart axis
+
+
+-- QUALITY SCORE (calculated column — Modeling > New Column) --
+
+SessionQualityScore =
+VAR PVScore = MIN(WebSessions[Pageviews], 10) * 2
+VAR DurScore = MIN(WebSessions[SessionDurationSec], 300) / 30
+VAR ConvBonus = IF(WebSessions[Converted] = 1, 15, 0)
+VAR BouncePenalty = IF(WebSessions[IsBounce] = 1, -10, 0)
+RETURN
+    PVScore + DurScore + ConvBonus + BouncePenalty
